@@ -19,8 +19,15 @@ type Summary struct {
 	Throughput     float64 `json:"throughput"`
 	AvgLatencyMs   float64 `json:"avg_latency_ms"`
 
-	Elapsed      time.Duration `json:"-"`
-	totalLatency time.Duration
+	Elapsed           time.Duration `json:"-"`
+	totalLatency      time.Duration
+	LoadWindowSeconds float64 `json:"load_window_seconds"`
+	AttemptedRPS      float64 `json:"attempted_rps"`
+
+	ScheduledRequests  int `json:"scheduled_requests"`
+	DispatchedRequests int `json:"dispatched_requests"`
+	StartedRequests    int `json:"started_requests"`
+	MissedSchedules    int `json:"missed_schedules"`
 }
 
 func (s *Summary) Record(result Result) {
@@ -63,5 +70,10 @@ func (s *Summary) Calculate() {
 			float64(time.Millisecond)
 
 		s.AvgLatencyMs = math.Round(avgMs*100) / 100
+	}
+
+	if s.LoadWindowSeconds > 0 {
+		s.AttemptedRPS = float64(s.Requests) /
+			s.LoadWindowSeconds
 	}
 }

@@ -222,3 +222,94 @@ func TestGracefulShutdown(t *testing.T) {
 		t.Fatal("Request accounting mismatch")
 	}
 }
+
+func TestGlobalRPS(t *testing.T) {
+	server := httptest.NewServer(
+		http.HandlerFunc(func(
+			w http.ResponseWriter,
+			r *http.Request,
+		) {
+			w.WriteHeader(http.StatusOK)
+		}),
+	)
+	defer server.Close()
+
+	summary := Run(context.Background(), Config{
+		URL:      server.URL,
+		Workers:  5,
+		Duration: 1 * time.Second,
+		RPS:      20,
+	})
+
+	t.Logf(
+		"Requests: %d, Successes: %d, Throughput: %.2f",
+		summary.Requests,
+		summary.Successes,
+		summary.Throughput,
+	)
+
+	// Allow timing variation under system load.
+	if summary.Requests < 10 || summary.Requests > 22 {
+		t.Fatalf(
+			"Expected approximately 20 requests, got %d",
+			summary.Requests,
+		)
+	}
+
+	if summary.Requests != summary.Successes+summary.Failures {
+		t.Fatal("Request accounting mismatch")
+	}
+
+	if summary.HTTPErrorCount != 0 ||
+		summary.NetworkErrors != 0 {
+		t.Fatalf("Unexpected HTTP or network errors: %+v", summary)
+	}
+}
+
+func TestSchedulerAccounting(t *testing.T) {
+	server := httptest.NewServer(
+		http.HandlerFunc(func(
+			w http.ResponseWriter,
+			r *http.Request,
+		) {
+			w.WriteHeader(http.StatusOK)
+		}),
+	)
+	defer server.Close()
+
+	summary := Run(context.Background(), Config{
+		URL:      server.URL,
+		Workers:  3,
+		RPS:      40,
+		Duration: time.Second,
+	})
+
+	if summary.ScheduledRequests !=
+		summary.DispatchedRequests+summary.MissedSchedules {
+		t.Fatalf(
+			"Scheduler accounting mismatch: %+v",
+			summary,
+		)
+	}
+
+	if summary.StartedRequests > summary.DispatchedRequests {
+		t.Fatalf(
+			"Started more requests than dispatched: %+v",
+			summary,
+		)
+	}
+
+	if summary.StartedRequests != summary.Requests {
+		t.Fatalf(
+			"Request accounting mismatch: %+v",
+			summary,
+		)
+	}
+
+	if summary.Requests != summary.Successes+summary.Failures {
+		t.Fatalf(
+			"Result classification mismatch: %+v",
+			summary,
+		)
+	}
+}

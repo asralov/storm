@@ -17,6 +17,7 @@ type TestConfig struct {
 	Workers         int    `json:"workers"`
 	DurationSeconds int    `json:"duration_seconds"`
 	Authorized      bool   `json:"authorized"`
+	RPS             int    `json:"rps"`
 }
 
 func (s *Server) createTestHandler(w http.ResponseWriter, r *http.Request) {
@@ -68,11 +69,24 @@ func (s *Server) createTestHandler(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, `{"error":"Authorization required"}`, http.StatusBadRequest)
 		return
 	}
+	if cfg.RPS == 0 {
+		cfg.RPS = 20
+	}
+
+	if cfg.RPS < 1 || cfg.RPS > 100 {
+		http.Error(
+			w,
+			`{"error":"RPS must be between 1 and 100"}`,
+			http.StatusBadRequest,
+		)
+		return
+	}
 
 	engineConfig := loadtest.Config{
 		URL:      cfg.URL,
 		Workers:  cfg.Workers,
 		Duration: time.Duration(cfg.DurationSeconds) * time.Second,
+		RPS:      cfg.RPS,
 	}
 
 	summary := loadtest.Run(r.Context(), engineConfig)

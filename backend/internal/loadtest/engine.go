@@ -6,6 +6,7 @@ import (
 	"net"
 	"net/http"
 	"sync"
+	"sync/atomic"
 	"time"
 )
 
@@ -13,6 +14,7 @@ type Config struct {
 	URL      string
 	Workers  int
 	Duration time.Duration
+	RPS      int
 }
 
 type Result struct {
@@ -21,18 +23,35 @@ type Result struct {
 	Err        error
 }
 
+type SchedulerStats struct {
+	Scheduled  int
+	Dispatched int
+	Missed     int
+}
+
 const shutdownGracePeriod = 3 * time.Second
 
 func Run(parent context.Context, cfg Config) Summary {
 	start := time.Now()
+	loadWindowEnded := make(chan time.Duration, 1)
 
-	// Controls when NEW requests may begin.
+	// Keep existing callers working with a safe default.
+	if cfg.RPS == 0 {
+		cfg.RPS = 20
+	}
+
+	// Defensive limits: API validation is not enough.
+	if cfg.Workers < 1 || cfg.Workers > 10 ||
+		cfg.RPS < 1 || cfg.RPS > 100 ||
+		cfg.Duration <= 0 || cfg.Duration > 30*time.Second {
+		return Summary{}
+	}
+
 	scheduleCtx, stopScheduling := context.WithTimeout(
 		parent, cfg.Duration,
 	)
 	defer stopScheduling()
 
-	// Controls requests that are already in progress.
 	requestCtx, cancelRequests := context.WithCancel(parent)
 	defer cancelRequests()
 
@@ -58,64 +77,109 @@ func Run(parent context.Context, cfg Config) Summary {
 		},
 	}
 
+	// Unbuffered: work is accepted only if a worker is free.
+	jobs := make(chan struct{})
 	results := make(chan Result, cfg.Workers)
-	var wg sync.WaitGroup
 
-	// Launch workers.
+	var wg sync.WaitGroup
+	var requestsStarted atomic.Int64
 	for i := 0; i < cfg.Workers; i++ {
 		wg.Add(1)
-
 		go func() {
 			defer wg.Done()
-
-			worker(
-				scheduleCtx,
-				requestCtx,
-				client,
-				cfg.URL,
-				results,
-			)
+			worker(scheduleCtx, requestCtx, client, cfg.URL, jobs, results, &requestsStarted)
 		}()
 	}
 
-	workersDone := make(chan struct{})
+	schedulerDone := make(chan SchedulerStats, 1)
 
+	go func() {
+		schedulerDone <- scheduleRequests(
+			scheduleCtx,
+			cfg.RPS,
+			jobs,
+		)
+	}()
+
+	workersDone := make(chan struct{})
 	go func() {
 		wg.Wait()
 		close(workersDone)
 	}()
 
-	// Coordinate shutdown independently from metric collection.
+	// Coordinate graceful shutdown.
 	go func() {
-		// Wait until the load generation window closes.
 		<-scheduleCtx.Done()
+		loadWindowEnded <- time.Since(start)
 
-		// Allow outstanding requests to finish.
+		timer := time.NewTimer(shutdownGracePeriod)
+		defer timer.Stop()
+
 		select {
 		case <-workersDone:
-			// All workers finished naturally.
-
-		case <-time.After(shutdownGracePeriod):
-			// Grace period expired.
+		case <-parent.Done():
+			cancelRequests()
+		case <-timer.C:
 			cancelRequests()
 		}
 
-		// Always wait before closing results.
 		<-workersDone
 		close(results)
 	}()
 
 	var summary Summary
 
-	// Keep collecting until every worker has finished.
+	// Drain every result before returning.
 	for result := range results {
 		summary.Record(result)
 	}
 
+	summary.LoadWindowSeconds = (<-loadWindowEnded).Seconds()
 	summary.Elapsed = time.Since(start)
-	summary.Calculate()
+	schedulerStats := <-schedulerDone
 
+	summary.ScheduledRequests = schedulerStats.Scheduled
+	summary.DispatchedRequests = schedulerStats.Dispatched
+	summary.MissedSchedules = schedulerStats.Missed
+	summary.StartedRequests = int(requestsStarted.Load())
+	summary.Calculate()
 	return summary
+}
+
+func scheduleRequests(
+	ctx context.Context,
+	rps int,
+	jobs chan<- struct{},
+) SchedulerStats {
+	defer close(jobs)
+
+	stats := SchedulerStats{}
+
+	interval := time.Second / time.Duration(rps)
+	ticker := time.NewTicker(interval)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-ctx.Done():
+			return stats
+
+		case <-ticker.C:
+			if ctx.Err() != nil {
+				return stats
+			}
+
+			stats.Scheduled++
+
+			select {
+			case jobs <- struct{}{}:
+				stats.Dispatched++
+
+			default:
+				stats.Missed++
+			}
+		}
+	}
 }
 
 func worker(
@@ -123,27 +187,29 @@ func worker(
 	requestCtx context.Context,
 	client *http.Client,
 	target string,
+	jobs <-chan struct{},
 	results chan<- Result,
+	started *atomic.Int64,
 ) {
-	ticker := time.NewTicker(100 * time.Millisecond)
-	defer ticker.Stop()
-
 	for {
 		select {
 		case <-scheduleCtx.Done():
 			return
 
-		case <-ticker.C:
+		case _, ok := <-jobs:
+			if !ok {
+				return
+			}
 		}
 
-		// Do not schedule requests after the load window ends.
 		if scheduleCtx.Err() != nil {
 			return
 		}
+		started.Add(1)
 
 		result := executeRequest(requestCtx, client, target)
 
-		// Always account for an attempted request.
+		// Every started request is recorded.
 		results <- result
 	}
 }
