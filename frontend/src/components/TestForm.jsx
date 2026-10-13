@@ -6,6 +6,7 @@ export default function TestForm() {
     const [workers, setWorkers] = useState(2)
     const [duration, setDuration] = useState(5)
     const [authorized, setAuthorized] = useState(false)
+    const [rps, setRps] = useState(20)
 
     const [loading, setLoading] = useState(false)
     const [result, setResult] = useState(null)
@@ -24,6 +25,7 @@ export default function TestForm() {
                 method: 'GET',
                 workers: Number(workers),
                 duration_seconds: Number(duration),
+                rps: Number(rps),
                 authorized
             }
 
@@ -70,6 +72,16 @@ export default function TestForm() {
                 onChange={(e) => setDuration(e.target.value)}
                 required
             />
+            <label htmlFor="rps">Target Requests Per Second</label>
+            <input
+                id="rps"
+                type="number"
+                min="1"
+                max="100"
+                value={rps}
+                onChange={(e) => setRps(e.target.value)}
+                required
+            />
 
             <label htmlFor="authorized">
                 <input
@@ -106,6 +118,25 @@ export default function TestForm() {
                 <p>
                 Elapsed: {result.elapsed_seconds.toFixed(2)} seconds
                 </p>
+                <p>
+                Target RPS: {rps}
+                </p>
+
+                <p>
+                Attempted RPS: {result.attempted_rps.toFixed(2)}
+                </p>
+
+                <p>
+                Load Window: {result.load_window_seconds.toFixed(2)}s
+                </p>
+
+                <p>
+                Total Execution: {result.elapsed_seconds.toFixed(2)}s
+                </p>
+                <p>Scheduled: {result.scheduled_requests}</p>
+                <p>Dispatched: {result.dispatched_requests}</p>
+                <p>Started: {result.started_requests}</p>
+                <p>Missed: {result.missed_schedules}</p>
             </section>
             )}
 
