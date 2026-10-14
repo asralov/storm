@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"math"
+	"slices"
 	"time"
 )
 
@@ -18,6 +19,14 @@ type Summary struct {
 	ElapsedSeconds float64 `json:"elapsed_seconds"`
 	Throughput     float64 `json:"throughput"`
 	AvgLatencyMs   float64 `json:"avg_latency_ms"`
+	P50LatencyMs   float64 `json:"p50_latency_ms"`
+	P95LatencyMs   float64 `json:"p95_latency_ms"`
+	P99LatencyMs   float64 `json:"p99_latency_ms"`
+
+	// Only the collector records and finalizes these successful-response samples.
+	// Keeping every sample is acceptable for the bounded MVP; high-volume tests
+	// will need a histogram or another memory-efficient distribution.
+	latencies []time.Duration
 
 	Elapsed           time.Duration `json:"-"`
 	totalLatency      time.Duration
@@ -49,6 +58,7 @@ func (s *Summary) Record(result Result) {
 	if result.StatusCode >= 200 && result.StatusCode < 300 {
 		s.Successes++
 		s.totalLatency += result.Latency
+		s.latencies = append(s.latencies, result.Latency)
 	} else {
 		// Includes redirects and HTTP 4xx/5xx.
 		s.Failures++
@@ -57,6 +67,12 @@ func (s *Summary) Record(result Result) {
 }
 
 func (s *Summary) Calculate() {
+	// Sort once for all three nearest-rank percentiles.
+	slices.Sort(s.latencies)
+	s.P50LatencyMs = nearestRankLatencyMs(s.latencies, 0.50)
+	s.P95LatencyMs = nearestRankLatencyMs(s.latencies, 0.95)
+	s.P99LatencyMs = nearestRankLatencyMs(s.latencies, 0.99)
+
 	s.ElapsedSeconds = s.Elapsed.Seconds()
 
 	if s.ElapsedSeconds > 0 {
@@ -76,4 +92,14 @@ func (s *Summary) Calculate() {
 		s.AttemptedRPS = float64(s.Requests) /
 			s.LoadWindowSeconds
 	}
+}
+
+// nearestRankLatencyMs expects sorted samples and 0 < p <= 1.
+// Zero denotes no samples when Successes is zero.
+func nearestRankLatencyMs(samples []time.Duration, p float64) float64 {
+	if len(samples) == 0 {
+		return 0
+	}
+	rank := int(math.Ceil(p * float64(len(samples))))
+	return float64(samples[rank-1]) / float64(time.Millisecond)
 }
