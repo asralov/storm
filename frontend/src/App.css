@@ -1,4 +1,16 @@
 .app-shell { display: flex; min-height: 100svh; }
+.stage-preview { padding: 12px; border: 1px solid var(--border); border-radius: 6px; color: var(--muted); font-size: 11px; overflow-wrap: anywhere; }
+.stage-preview.error { color: #fca5a5; }
+.stage-results { min-width: 0; margin-bottom: 25px; }
+.stage-results > .details-heading { padding-inline: 0; }
+.stage-results .chart-panel > h3 { font-size: 13px; padding: 0 6px 12px; }
+.stage-table-scroll { max-width: 100%; overflow-x: auto; margin-bottom: 12px; }
+.stage-table { width: 100%; border-collapse: collapse; font-size: 11px; text-align: left; white-space: nowrap; }
+.stage-table caption { text-align: left; padding: 12px; color: var(--muted); }
+.stage-table th, .stage-table td { padding: 10px 12px; border-top: 1px solid var(--border); }
+.stage-table thead { color: var(--muted); }
+.stage-table tbody th { color: #91bbff; }
+.stage-timeline-title { margin: 20px 0 12px; }
 .timeline-section { margin-bottom: 24px; min-width: 0; }
 .chart-legend { display: flex; flex-wrap: wrap; gap: 6px; padding: 8px 6px; }
 .chart-legend button { display: inline-flex; align-items: center; gap: 6px; padding: 5px 8px; background: var(--bg); color: var(--text); border: 1px solid var(--border); border-radius: 5px; font-size: 11px; }

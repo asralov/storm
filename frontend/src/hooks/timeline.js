@@ -32,9 +32,10 @@ export function mergeIntervals(previous, intervals = []) {
 export function mergeRun(previous, incoming) {
   if (!incoming) return null
   const same = previous?.id === incoming.id
+  const sameStage = same && previous.current_stage === incoming.current_stage
   return {
     ...incoming,
     chartRecovered: incoming.chartRecovered ?? (same && previous.chartRecovered),
-    timeline: mergeIntervals(same ? previous.timeline ?? [] : [], incoming.intervals),
+    timeline: mergeIntervals(sameStage ? previous.timeline ?? [] : [], incoming.intervals),
   }
 }

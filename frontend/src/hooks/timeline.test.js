@@ -2,6 +2,13 @@ import test from 'node:test'
 import assert from 'node:assert/strict'
 import { mergeIntervals, mergeRun, MAX_SAMPLES } from './timeline.js'
 
+test('stage transitions reset interval sequences within the same run', () => {
+  const previous = mergeRun(null, { id: 'a', current_stage: 1, intervals: [interval(1), interval(2)] })
+  const next = mergeRun(previous, { id: 'a', current_stage: 2, intervals: [interval(1)] })
+  assert.equal(next.timeline.length, 1)
+  assert.equal(next.current_stage, 2)
+})
+
 const interval = sequence => ({ sequence, start_seconds: sequence - 1, elapsed_seconds: sequence, duration_seconds: 1, completed: 10, successes: 8, failures: 2, http_errors: 1, network_errors: 1, canceled: 0, throughput: 10, avg_latency_ms: 20, p50_latency_ms: 10, p95_latency_ms: 40, p99_latency_ms: 50 })
 
 test('history survives missed polls and can be recovered on a fresh page', () => {
