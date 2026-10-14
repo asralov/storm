@@ -20,15 +20,16 @@ var (
 const retainedRuns = 20
 
 type Run struct {
-	ID                    string            `json:"id"`
-	Config                Config            `json:"config"`
-	Status                string            `json:"status"`
-	StartedAt             *time.Time        `json:"started_at"`
-	CompletedAt           *time.Time        `json:"completed_at"`
-	Progress              loadtest.Progress `json:"progress"`
-	Summary               *loadtest.Summary `json:"summary,omitempty"`
-	CancellationRequested bool              `json:"cancellation_requested"`
-	Error                 string            `json:"error,omitempty"`
+	Intervals             []loadtest.Interval `json:"intervals"`
+	ID                    string              `json:"id"`
+	Config                Config              `json:"config"`
+	Status                string              `json:"status"`
+	StartedAt             *time.Time          `json:"started_at"`
+	CompletedAt           *time.Time          `json:"completed_at"`
+	Progress              loadtest.Progress   `json:"progress"`
+	Summary               *loadtest.Summary   `json:"summary,omitempty"`
+	CancellationRequested bool                `json:"cancellation_requested"`
+	Error                 string              `json:"error,omitempty"`
 }
 
 type entry struct {
@@ -87,10 +88,12 @@ func (m *Manager) execute(ctx context.Context, e *entry) {
 		select {
 		case p := <-updates:
 			m.mu.Lock()
+			e.run.Intervals = p.Intervals
 			e.run.Progress, e.run.Status = p, p.Status
 			m.mu.Unlock()
 		case summary := <-final:
 			m.mu.Lock()
+			e.run.Intervals = summary.Intervals
 			status := "completed"
 			if e.run.CancellationRequested {
 				status = "canceled"
@@ -105,6 +108,7 @@ func (m *Manager) execute(ctx context.Context, e *entry) {
 			p.ElapsedSeconds, p.LoadElapsedSeconds = summary.ElapsedSeconds, summary.LoadWindowSeconds
 			p.StartedRequests, p.CompletedRequests = summary.StartedRequests, summary.Requests
 			p.Successes, p.Failures, p.MissedSchedules = summary.Successes, summary.Failures, summary.MissedSchedules
+			p.AvgLatencyMs = summary.AverageLatency()
 			if p.LoadElapsedSeconds > 0 {
 				p.ObservedStartRPS = float64(p.StartedRequests) / p.LoadElapsedSeconds
 			}
@@ -124,6 +128,12 @@ func (m *Manager) execute(ctx context.Context, e *entry) {
 }
 
 func clone(r Run) Run {
+	r.Intervals = loadtest.CloneIntervals(r.Intervals)
+	r.Progress.Intervals = nil // History is exposed once, at the run level.
+	if r.Progress.AvgLatencyMs != nil {
+		v := *r.Progress.AvgLatencyMs
+		r.Progress.AvgLatencyMs = &v
+	}
 	if r.StartedAt != nil {
 		v := *r.StartedAt
 		r.StartedAt = &v

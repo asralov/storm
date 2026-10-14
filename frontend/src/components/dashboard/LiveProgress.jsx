@@ -11,7 +11,7 @@ export default function LiveProgress({ run, active, stopping, onStop }) {
         <dl className="live-stats">{[['Started', p.started_requests], ['Recorded outcomes', p.completed_requests], ['Successful', p.successes], ['Failed', p.failures], ['Missed schedules', p.missed_schedules]].map(([label, value]) => <div key={label}><dt>{label}</dt><dd>{formatMetric(value)}</dd></div>)}</dl>
         <div className="live-rates"><p><strong>{formatMetric(p.observed_start_rps, 2)} req/s</strong><span>Starts / measured load time</span></p><p><strong>{p.sample_interval_seconds > 0 ? `${formatMetric(p.recent_throughput, 2)} req/s` : 'N/A'}</strong><span>Recorded outcomes / last {formatMetric(p.sample_interval_seconds, 2)} s sample</span></p></div>
       </>}
-      <p className="details-note">{active ? 'Updates are measured by the engine about once per second. Latency percentiles and the full report appear after shutdown. You can refresh and recover an active test.' : 'The bar shows measured load duration; a canceled run may finish below 100%.'}</p>
+      <p className="details-note">{active ? 'Updates are measured about once per second. Interval latency appears in the charts; full-run percentiles appear after shutdown. Refresh recovers active runs and retained windows.' : 'The bar shows measured load duration; a canceled run may finish below 100%.'}</p>
     </section>
   )
 }

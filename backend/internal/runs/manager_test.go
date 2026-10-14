@@ -36,6 +36,18 @@ func assertAccounting(t *testing.T, r Run) {
 		t.Fatal("missing final summary")
 	}
 	s := r.Summary
+	var completed, successes, failures, httpErrors, networkErrors, canceled int
+	for _, window := range r.Intervals {
+		completed += window.Completed
+		successes += window.Successes
+		failures += window.Failures
+		httpErrors += window.HTTPErrors
+		networkErrors += window.NetworkErrors
+		canceled += window.Canceled
+	}
+	if completed != s.Requests || successes != s.Successes || failures != s.Failures || httpErrors != s.HTTPErrorCount || networkErrors != s.NetworkErrors || canceled != s.Canceled {
+		t.Fatalf("interval totals differ from final summary: %+v", r)
+	}
 	if s.StartedRequests != s.Requests || s.Requests != s.Successes+s.Failures || s.Failures != s.HTTPErrorCount+s.NetworkErrors+s.Canceled || s.ScheduledRequests != s.DispatchedRequests+s.MissedSchedules {
 		t.Fatalf("invalid final accounting: %+v", s)
 	}
@@ -86,6 +98,15 @@ func TestCompletionAndConcurrentReads(t *testing.T) {
 		t.Fatalf("bad completion: %+v", final)
 	}
 	assertAccounting(t, final)
+	if len(final.Intervals) == 0 {
+		t.Fatal("missing retained history")
+	}
+	before := final.Intervals[0].Completed
+	final.Intervals[0].Completed = -1
+	historyCopy, _ := m.Get(r.ID)
+	if historyCopy.Intervals[0].Completed != before {
+		t.Fatal("history snapshot aliases manager")
+	}
 	if m.Active() != nil {
 		t.Fatal("completed run still active")
 	}

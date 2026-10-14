@@ -19,9 +19,10 @@ type Config struct {
 }
 
 type Result struct {
-	StatusCode int
-	Latency    time.Duration
-	Err        error
+	CompletedAt time.Time
+	StatusCode  int
+	Latency     time.Duration
+	Err         error
 }
 
 type SchedulerStats struct {
@@ -135,6 +136,7 @@ func RunWithProgress(parent context.Context, cfg Config, updates chan<- Progress
 	}()
 
 	var summary Summary
+	var intervals intervalCollector
 	ticker := time.NewTicker(time.Second)
 	defer ticker.Stop()
 	lastSample := start
@@ -151,6 +153,7 @@ func RunWithProgress(parent context.Context, cfg Config, updates chan<- Progress
 		progress := makeProgress(status, now, now.Sub(start), active, cfg,
 			int(requestsStarted.Load()), int(missed.Load()), summary,
 			now.Sub(lastSample), summary.Requests-lastCompleted)
+		progress.Intervals = intervals.snapshot(now.Sub(start), false)
 		select {
 		case updates <- progress:
 		default:
@@ -167,6 +170,7 @@ func RunWithProgress(parent context.Context, cfg Config, updates chan<- Progress
 				results = nil
 			} else {
 				summary.Record(result)
+				intervals.record(result, result.CompletedAt.Sub(start))
 			}
 		case elapsed := <-loadWindowEnded:
 			loadElapsed, loadEnded = min(elapsed, cfg.Duration), true
@@ -183,6 +187,7 @@ func RunWithProgress(parent context.Context, cfg Config, updates chan<- Progress
 	}
 	summary.LoadWindowSeconds = loadElapsed.Seconds()
 	summary.Elapsed = time.Since(start)
+	summary.Intervals = intervals.snapshot(summary.Elapsed, true)
 	schedulerStats := <-schedulerDone
 
 	summary.ScheduledRequests = schedulerStats.Scheduled
@@ -274,6 +279,7 @@ func worker(
 		started.Add(1)
 
 		result := executeRequest(requestCtx, client, target)
+		result.CompletedAt = time.Now()
 
 		// Every started request is recorded.
 		results <- result

@@ -19,13 +19,14 @@ Open http://localhost:5173. The backend binds to 127.0.0.1:8080. Vite proxies
 `/api` with the browser's original Host header; its port is fixed at 5173.
 An existing backend process must be restarted after backend source changes.
 
-For a small local target, Node (already required by Vite) can serve a response:
+For a local target, start Storm Lab from the backend directory:
 
 ```powershell
-node -e "require('node:http').createServer((req,res)=>res.end('Storm target')).listen(8081,'127.0.0.1')"
+go run ./cmd/storm-lab
 ```
 
-Use `http://127.0.0.1:8081` in the dashboard, confirm authorization, and run.
+Use `http://127.0.0.1:8081/variable` in the dashboard, confirm authorization, and run.
+See [the lab guide](performance-lab.md) for all endpoints and interval definitions.
 Stop requests cancellation; the UI waits for the terminal response. Refreshing
 recovers an active run. Closing the page does not cancel it: configured duration
 and request timeouts still bound its lifetime. Ctrl+C on the Go server cancels
@@ -40,7 +41,7 @@ active run returns **409**, including while the first run is draining or stoppin
 ```powershell
 $base = 'http://127.0.0.1:8080'
 $config = @{
-    url = 'http://127.0.0.1:8081'
+    url = 'http://127.0.0.1:8081/variable'
     method = 'GET'
     workers = 2
     duration_seconds = 10
@@ -117,7 +118,8 @@ zero until work starts. Recent throughput is unavailable on final snapshots; use
 The legacy `summary.attempted_rps` remains recorded outcomes / load window duration.
 
 P50/P95/P99 use nearest rank over completed HTTP 2xx responses with fully read
-bodies. They are calculated once at finalization. No successful samples means
+bodies. Whole-run values are calculated once at finalization; interval values are
+calculated separately for live charts. No successful samples means
 `N/A` in the UI, including average latency. The progress bar measures the load
 window; 100% while draining does not mean the run has terminated.
 
@@ -160,6 +162,16 @@ results, accounting, progress denominators, blocked progress consumers, redirect
 validation, and browser-origin protection.
 
 ## Limits
+
+### Live charts (Phase 4)
+
+The charts now use retained one-second interval statistics, including live
+P50/P95/P99/Average, completed throughput, and split failures. The backend retains
+up to 300 windows per run. Active-run recovery restores those measured windows;
+missed polls do not fabricate or duplicate data. Final partial intervals are
+included and chart history remains available until the run is evicted or the
+backend restarts. Whole-run summary cards and cumulative numeric progress remain
+separate. See [the full interval contract and lab guide](performance-lab.md).
 
 - At most one active run and 20 finished runs are retained. Evicted IDs return 404.
 - All state disappears when the backend restarts. There is no history UI/storage.

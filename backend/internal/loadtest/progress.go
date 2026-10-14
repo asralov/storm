@@ -5,17 +5,19 @@ import "time"
 // Progress is an immutable sample, not an estimate between samples. Completed
 // counts include all recorded outcomes, including errors and cancellation.
 type Progress struct {
-	Status             string    `json:"status"`
-	SampledAt          time.Time `json:"sampled_at"`
-	ElapsedSeconds     float64   `json:"elapsed_seconds"`
-	LoadElapsedSeconds float64   `json:"load_elapsed_seconds"`
-	DurationSeconds    float64   `json:"duration_seconds"`
-	TargetRPS          int       `json:"target_rps"`
-	StartedRequests    int       `json:"started_requests"`
-	CompletedRequests  int       `json:"completed_requests"`
-	Successes          int       `json:"successes"`
-	Failures           int       `json:"failures"`
-	MissedSchedules    int       `json:"missed_schedules"`
+	Intervals          []Interval `json:"-"`
+	Status             string     `json:"status"`
+	SampledAt          time.Time  `json:"sampled_at"`
+	ElapsedSeconds     float64    `json:"elapsed_seconds"`
+	LoadElapsedSeconds float64    `json:"load_elapsed_seconds"`
+	DurationSeconds    float64    `json:"duration_seconds"`
+	TargetRPS          int        `json:"target_rps"`
+	StartedRequests    int        `json:"started_requests"`
+	CompletedRequests  int        `json:"completed_requests"`
+	Successes          int        `json:"successes"`
+	Failures           int        `json:"failures"`
+	AvgLatencyMs       *float64   `json:"avg_latency_ms"`
+	MissedSchedules    int        `json:"missed_schedules"`
 	// StartedRequests / LoadElapsedSeconds, frozen when scheduling ends.
 	ObservedStartRPS float64 `json:"observed_start_rps"`
 	// Outcomes recorded since the previous engine sample / sample interval.
@@ -28,6 +30,7 @@ func makeProgress(status string, now time.Time, elapsed, active time.Duration, c
 	if active > 0 {
 		p.ObservedStartRPS = float64(started) / active.Seconds()
 	}
+	p.AvgLatencyMs = summary.AverageLatency()
 	if interval > 0 {
 		p.RecentThroughput = float64(completed) / interval.Seconds()
 	}

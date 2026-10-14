@@ -9,12 +9,13 @@ import (
 )
 
 type Summary struct {
-	Requests       int `json:"requests"`
-	Successes      int `json:"successes"`
-	Failures       int `json:"failures"`
-	HTTPErrorCount int `json:"http_error_count"`
-	NetworkErrors  int `json:"network_errors"`
-	Canceled       int `json:"canceled"`
+	Intervals      []Interval `json:"-"`
+	Requests       int        `json:"requests"`
+	Successes      int        `json:"successes"`
+	Failures       int        `json:"failures"`
+	HTTPErrorCount int        `json:"http_error_count"`
+	NetworkErrors  int        `json:"network_errors"`
+	Canceled       int        `json:"canceled"`
 
 	ElapsedSeconds float64 `json:"elapsed_seconds"`
 	Throughput     float64 `json:"throughput"`
@@ -41,8 +42,20 @@ type Summary struct {
 
 // Clone prevents callers of the run manager from sharing mutable sample storage.
 func (s Summary) Clone() Summary {
+	s.Intervals = CloneIntervals(s.Intervals)
 	s.latencies = slices.Clone(s.latencies)
 	return s
+}
+
+// AverageLatency returns the cumulative successful-response average in ms.
+// No successful samples is represented by nil, not a measured zero.
+func (s Summary) AverageLatency() *float64 {
+	if s.Successes == 0 {
+		return nil
+	}
+	value := float64(s.totalLatency) / float64(s.Successes) / float64(time.Millisecond)
+	value = math.Round(value*100) / 100
+	return &value
 }
 
 func (s *Summary) Record(result Result) {

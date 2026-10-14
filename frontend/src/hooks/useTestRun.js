@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { createTest, getActiveTest, getTest, stopTest } from '../services/testService'
+import { mergeRun } from './timeline'
 
 const terminal = status => ['completed', 'canceled', 'failed'].includes(status)
 
@@ -29,7 +30,7 @@ export default function useTestRun() {
       try {
         const data = await getActiveTest(controller.signal)
         if (!controller.signal.aborted) {
-          setRun(data.run)
+          setRun(previous => mergeRun(previous, data.run ? { ...data.run, chartRecovered: true } : null))
           setRecovering(false)
           setError('')
         }
@@ -53,7 +54,7 @@ export default function useTestRun() {
       try {
         const data = await getTest(id, controller.signal)
         if (controller.signal.aborted) return
-        setRun(data)
+        setRun(previous => mergeRun(previous, data))
         setError('')
         finished = terminal(data.status)
       } catch (err) {
@@ -79,7 +80,7 @@ export default function useTestRun() {
     const signal = lifetime.current.signal
     try {
       const data = await createTest(config, signal)
-      if (!signal.aborted) setRun(data)
+      if (!signal.aborted) setRun(previous => mergeRun(previous, data))
     } catch (err) {
       if (signal.aborted) return
       setError(err.message)
@@ -87,7 +88,7 @@ export default function useTestRun() {
       // before allowing another submission; never retry POST automatically.
       try {
         const data = await getActiveTest(signal)
-        if (!signal.aborted && data.run) setRun(data.run)
+        if (!signal.aborted && data.run) setRun(previous => mergeRun(previous, { ...data.run, chartRecovered: true }))
       } catch {
         if (!signal.aborted) {
           // Re-enter read-only recovery; never automatically resubmit a test.

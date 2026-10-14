@@ -1,4 +1,26 @@
 .app-shell { display: flex; min-height: 100svh; }
+.timeline-section { margin-bottom: 24px; min-width: 0; }
+.chart-legend { display: flex; flex-wrap: wrap; gap: 6px; padding: 8px 6px; }
+.chart-legend button { display: inline-flex; align-items: center; gap: 6px; padding: 5px 8px; background: var(--bg); color: var(--text); border: 1px solid var(--border); border-radius: 5px; font-size: 11px; }
+.chart-legend button[aria-pressed="false"] { color: var(--muted); text-decoration: line-through; }
+.chart-legend button:hover { border-color: var(--accent); }
+.chart-legend button span { width: 8px; height: 8px; border-radius: 50%; }
+.timeline-section > .details-heading { padding: 6px 0 10px; border: 0; }
+.timeline-caption { font-size: 11px; color: var(--muted); line-height: 1.7; margin: 0 0 14px; }
+.charts-grid { display: grid; grid-template-columns: minmax(0,1fr); gap: 14px; margin-bottom: 12px; }
+.chart-panel { padding: 16px 12px 12px; min-width: 0; }
+.chart-heading { display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 0 6px; }
+.chart-heading h3 { display: flex; align-items: center; gap: 8px; font-size: 13px; font-weight: 600; }
+.chart-heading h3 span { width: 7px; height: 7px; border-radius: 50%; }
+.chart-heading > span, .chart-description, .chart-latest { color: var(--muted); font-size: 10px; }
+.chart-description { padding: 7px 6px 0; min-height: 38px; }
+/* Keep the previous SVG width inside its panel while ResizeObserver updates it. */
+.chart-canvas { height: 190px; width: 100%; min-width: 0; overflow: hidden; }
+.chart-empty { height: 100%; display: grid; place-items: center; text-align: center; color: var(--muted); font-size: 12px; padding: 24px; }
+.chart-tooltip { background: #111827; border: 1px solid var(--border); border-radius: 6px; padding: 9px 12px; color: var(--text); font-size: 12px; }
+.chart-tooltip p { color: var(--muted); margin-bottom: 4px; font-size: 11px; }
+.chart-latest { padding: 8px 6px 0; min-height: 24px; }
+@media (min-width: 1600px) { .charts-grid { grid-template-columns: repeat(2,minmax(0,1fr)); } .chart-panel:first-child { grid-column: 1 / -1; } }
 .live-panel { margin-bottom: 20px; overflow: hidden; }
 .live-heading { display: flex; justify-content: space-between; gap: 12px; align-items: center; padding: 18px; }
 .live-heading h2 { font-size: 14px; }

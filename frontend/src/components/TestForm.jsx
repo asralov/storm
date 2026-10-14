@@ -1,9 +1,12 @@
+import { lazy, Suspense } from 'react'
 import useTestRun from '../hooks/useTestRun'
 import TestConfig from './dashboard/TestConfig'
 import ResultsOverview from './dashboard/ResultsOverview'
 import ResultsDetails from './dashboard/ResultsDetails'
 import LiveProgress from './dashboard/LiveProgress'
 import Icon from './ui/Icon'
+
+const LiveCharts = lazy(() => import('./dashboard/LiveCharts'))
 
 export default function TestForm() {
   const { run, active, recovering, starting, stopping, busy, error, submit, stop } = useTestRun()
@@ -22,6 +25,9 @@ export default function TestForm() {
         <div className="section-heading"><div><div className="eyebrow">PERFORMANCE REPORT</div><h2 id="results-title">Results overview</h2></div><span className={`badge ${run?.status === 'completed' ? 'success' : ''}`} role="status">{status}</span></div>
         <div className="result-message" role="status"><span className="message-icon"><Icon name="activity" size={22} /></span><div><strong>{recovering ? 'Looking for an active test.' : starting ? 'Starting your test.' : run ? messages[run.status] : 'Your next insight starts with a test.'}</strong><p>{run ? `${run.config.method} ${run.config.url} · ${run.config.workers} workers · target ${run.config.rps} req/s` : 'Configure a local target and run a test. Your actual results will appear here.'}</p></div></div>
         {run && <LiveProgress run={run} active={active} stopping={stopping} onStop={stop} />}
+        <Suspense fallback={<div className="panel chart-empty" role="status">Loading timeline…</div>}>
+          <LiveCharts key={run?.id || 'new'} samples={starting ? [] : run?.timeline} recovered={run?.chartRecovered} targetRPS={run?.config.rps} />
+        </Suspense>
         <ResultsOverview result={run?.summary} />
         <ResultsDetails result={run?.summary} />
       </section>
