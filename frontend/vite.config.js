@@ -5,8 +5,12 @@ import { defineConfig } from 'vite'
 export default defineConfig({
   plugins: [react()],
   server: {
+    host: 'localhost',
+    port: 5173,
+    strictPort: true,
     proxy: {
-      '/api': 'http://127.0.0.1:8080'
+      // Preserve browser Host/Origin for the Go API's same-origin checks.
+      '/api': { target: 'http://127.0.0.1:8080', changeOrigin: false }
     }
   }
 })

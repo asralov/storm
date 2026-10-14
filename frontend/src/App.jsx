@@ -1,30 +1,36 @@
 import { useEffect, useState } from 'react'
 import './App.css'
+import Sidebar from './components/layout/Sidebar'
+import Header from './components/layout/Header'
 import TestForm from './components/TestForm'
+import { getHealth } from './services/testService'
 
-function App() {
-  const [status, setStatus] = useState('Connecting...')
-
+export default function App() {
+  const [health, setHealth] = useState({ state: 'checking' })
   useEffect(() => {
-    fetch('/api/health')
-      .then((response) => {
-        if (!response.ok) {
-          throw new Error('Backend unavailable')
-        }
-        return response.json()
-      })
-      .then((data) => setStatus(data.status))
-      .catch(() => setStatus('disconnected'))
+    const controller = new AbortController()
+    let timer
+    async function check() {
+      try {
+        const data = await getHealth(controller.signal)
+        if (!controller.signal.aborted) setHealth({ state: 'online', version: data.version })
+      } catch {
+        if (!controller.signal.aborted) setHealth({ state: 'offline' })
+      }
+      if (!controller.signal.aborted) timer = setTimeout(check, 15000)
+    }
+    check()
+    return () => { controller.abort(); clearTimeout(timer) }
   }, [])
-
   return (
-    <main>
-      <h1>Storm</h1>
-      <p>Local API Performance Testing Platform</p>
-      <TestForm />
-
-    </main>
+    <div className="app-shell">
+      <a className="skip-link" href="#dashboard">Skip to dashboard</a>
+      <Sidebar version={health.version} />
+      <main id="dashboard" className="main-content">
+        <Header health={health.state} />
+        <TestForm />
+        <footer className="page-footer"><span>Built for your local environment.</span><span>STORM / HTTP PERFORMANCE</span></footer>
+      </main>
+    </div>
   )
 }
-
-export default App

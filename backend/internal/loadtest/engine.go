@@ -2,6 +2,7 @@ package loadtest
 
 import (
 	"context"
+	"fmt"
 	"io"
 	"net"
 	"net/http"
@@ -32,6 +33,12 @@ type SchedulerStats struct {
 const shutdownGracePeriod = 3 * time.Second
 
 func Run(parent context.Context, cfg Config) Summary {
+	return RunWithProgress(parent, cfg, nil)
+}
+
+// RunWithProgress never waits for a progress consumer. Final results are returned
+// separately, so dropping a periodic snapshot cannot lose the final report.
+func RunWithProgress(parent context.Context, cfg Config, updates chan<- Progress) Summary {
 	start := time.Now()
 	loadWindowEnded := make(chan time.Duration, 1)
 
@@ -56,10 +63,8 @@ func Run(parent context.Context, cfg Config) Summary {
 	defer cancelRequests()
 
 	transport := &http.Transport{
-		Proxy: nil,
-		DialContext: (&net.Dialer{
-			Timeout: 2 * time.Second,
-		}).DialContext,
+		Proxy:               nil,
+		DialContext:         dialLoopback,
 		MaxIdleConns:        cfg.Workers,
 		MaxIdleConnsPerHost: cfg.Workers,
 		MaxConnsPerHost:     cfg.Workers,
@@ -83,6 +88,7 @@ func Run(parent context.Context, cfg Config) Summary {
 
 	var wg sync.WaitGroup
 	var requestsStarted atomic.Int64
+	var missed atomic.Int64
 	for i := 0; i < cfg.Workers; i++ {
 		wg.Add(1)
 		go func() {
@@ -98,6 +104,7 @@ func Run(parent context.Context, cfg Config) Summary {
 			scheduleCtx,
 			cfg.RPS,
 			jobs,
+			&missed,
 		)
 	}()
 
@@ -128,13 +135,53 @@ func Run(parent context.Context, cfg Config) Summary {
 	}()
 
 	var summary Summary
+	ticker := time.NewTicker(time.Second)
+	defer ticker.Stop()
+	lastSample := start
+	lastCompleted := 0
+	loadElapsed := time.Duration(0)
+	loadEnded := false
+	status := "running"
+	publish := func() {
+		now := time.Now()
+		active := loadElapsed
+		if !loadEnded {
+			active = min(now.Sub(start), cfg.Duration)
+		}
+		progress := makeProgress(status, now, now.Sub(start), active, cfg,
+			int(requestsStarted.Load()), int(missed.Load()), summary,
+			now.Sub(lastSample), summary.Requests-lastCompleted)
+		select {
+		case updates <- progress:
+		default:
+		}
+		lastSample, lastCompleted = now, summary.Requests
+	}
+	publish()
 
 	// Drain every result before returning.
-	for result := range results {
-		summary.Record(result)
+	for results != nil {
+		select {
+		case result, ok := <-results:
+			if !ok {
+				results = nil
+			} else {
+				summary.Record(result)
+			}
+		case elapsed := <-loadWindowEnded:
+			loadElapsed, loadEnded = min(elapsed, cfg.Duration), true
+			loadWindowEnded = nil
+			status = "draining"
+			publish()
+		case <-ticker.C:
+			publish()
+		}
 	}
 
-	summary.LoadWindowSeconds = (<-loadWindowEnded).Seconds()
+	if !loadEnded {
+		loadElapsed = min(<-loadWindowEnded, cfg.Duration)
+	}
+	summary.LoadWindowSeconds = loadElapsed.Seconds()
 	summary.Elapsed = time.Since(start)
 	schedulerStats := <-schedulerDone
 
@@ -146,10 +193,28 @@ func Run(parent context.Context, cfg Config) Summary {
 	return summary
 }
 
+// Pin localhost to loopback instead of trusting DNS resolution; redirects are
+// separately disabled on the client. Direct engine callers get this protection too.
+func dialLoopback(ctx context.Context, network, address string) (net.Conn, error) {
+	host, port, err := net.SplitHostPort(address)
+	if err != nil {
+		return nil, err
+	}
+	if host == "localhost" {
+		host = "127.0.0.1"
+	}
+	ip := net.ParseIP(host)
+	if ip == nil || !ip.IsLoopback() {
+		return nil, fmt.Errorf("non-loopback target rejected")
+	}
+	return (&net.Dialer{Timeout: 2 * time.Second}).DialContext(ctx, network, net.JoinHostPort(host, port))
+}
+
 func scheduleRequests(
 	ctx context.Context,
 	rps int,
 	jobs chan<- struct{},
+	missed *atomic.Int64,
 ) SchedulerStats {
 	defer close(jobs)
 
@@ -177,6 +242,7 @@ func scheduleRequests(
 
 			default:
 				stats.Missed++
+				missed.Add(1)
 			}
 		}
 	}

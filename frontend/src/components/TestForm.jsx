@@ -1,156 +1,30 @@
-import {useState} from 'react'
-import {createTest} from '../services/testService'
+import useTestRun from '../hooks/useTestRun'
+import TestConfig from './dashboard/TestConfig'
+import ResultsOverview from './dashboard/ResultsOverview'
+import ResultsDetails from './dashboard/ResultsDetails'
+import LiveProgress from './dashboard/LiveProgress'
+import Icon from './ui/Icon'
 
 export default function TestForm() {
-    const [url, setUrl] = useState('http://127.0.0.1:8081')
-    const [workers, setWorkers] = useState(2)
-    const [duration, setDuration] = useState(5)
-    const [authorized, setAuthorized] = useState(false)
-    const [rps, setRps] = useState(20)
-
-    const [loading, setLoading] = useState(false)
-    const [result, setResult] = useState(null)
-    const [error, setError] = useState('')
-
-    async function handleSubmit(event) {
-        event.preventDefault()
-
-        setLoading(true)
-        setError('')
-        setResult(null)
-
-        try {
-            const config = {
-                url,
-                method: 'GET',
-                workers: Number(workers),
-                duration_seconds: Number(duration),
-                rps: Number(rps),
-                authorized
-            }
-
-            const response = await createTest(config)
-            setResult(response)
-        } catch (err) {
-            setError(err.message)
-        } finally {
-            setLoading(false)
-        }
-    }
-
-    return (
-        <form onSubmit={handleSubmit}>
-            <h2>Configure Load Test</h2>
-
-            <label htmlFor="target-url">Target URL</label>
-            <input
-                id="target-url"
-                type='url'
-                value={url}
-                onChange={(e) => setUrl(e.target.value)}
-                required
-            />
-
-            <label htmlFor="workers">Number of Workers</label>
-            <input
-                id="workers"
-                type='number'
-                value={workers}
-                min="1"
-                max="10"
-                onChange={(e) => setWorkers(e.target.value)}
-                required
-            />
-
-            <label htmlFor="duration">Test Duration (seconds)</label>
-            <input
-                id="duration"
-                type='number'
-                value={duration}
-                min="1"
-                max="30"
-                onChange={(e) => setDuration(e.target.value)}
-                required
-            />
-            <label htmlFor="rps">Target Requests Per Second</label>
-            <input
-                id="rps"
-                type="number"
-                min="1"
-                max="100"
-                value={rps}
-                onChange={(e) => setRps(e.target.value)}
-                required
-            />
-
-            <label htmlFor="authorized">
-                <input
-                    id="authorized"
-                    type='checkbox'
-                    checked={authorized}
-                    onChange={(e) => setAuthorized(e.target.checked)}
-                />
-                I own this API or have permission to load test it
-            </label>
-
-            <button type="submit" disabled={loading || !authorized}>
-                {loading ? 'Submitting...' : 'Validate Test Configuration'}
-            </button>
-
-            {error && <p className="error">{error}</p>}
-            
-            {result && (
-            <section className="results">
-                <h2>Test Results</h2>
-
-                <p>Total Requests: {result.requests}</p>
-                <p>Successful: {result.successes}</p>
-                <p>Failed: {result.failures}</p>
-
-                <p>
-                Throughput: {result.throughput.toFixed(2)} req/s
-                </p>
-
-                <p>
-                Average Latency: {result.avg_latency_ms.toFixed(2)} ms
-                </p>
-
-                {[50, 95, 99].map((percentile) => {
-                    const latency = result[`p${percentile}_latency_ms`]
-                    return (
-                        <p key={percentile}>
-                            P{percentile} Latency: {result.successes > 0 && Number.isFinite(latency)
-                                ? `${latency.toFixed(2)} ms`
-                                : 'N/A'}
-                        </p>
-                    )
-                })}
-
-                <p>
-                Elapsed: {result.elapsed_seconds.toFixed(2)} seconds
-                </p>
-                <p>
-                Target RPS: {rps}
-                </p>
-
-                <p>
-                Attempted RPS: {result.attempted_rps.toFixed(2)}
-                </p>
-
-                <p>
-                Load Window: {result.load_window_seconds.toFixed(2)}s
-                </p>
-
-                <p>
-                Total Execution: {result.elapsed_seconds.toFixed(2)}s
-                </p>
-                <p>Scheduled: {result.scheduled_requests}</p>
-                <p>Dispatched: {result.dispatched_requests}</p>
-                <p>Started: {result.started_requests}</p>
-                <p>Missed: {result.missed_schedules}</p>
-            </section>
-            )}
-
-        </form>
-    )
+  const { run, active, recovering, starting, stopping, busy, error, submit, stop } = useTestRun()
+  const status = recovering ? 'Checking active run' : starting ? 'Starting' : run?.cancellation_requested && active ? 'Stopping' : run?.status || 'Awaiting test'
+  const messages = {
+    pending: 'Your test is queued to start.', running: 'Your test is running.',
+    draining: 'Scheduling finished. Waiting for in-flight requests.',
+    completed: 'Test complete. Here’s how it performed.',
+    canceled: 'Test canceled. Results include all requests recorded before shutdown.',
+    failed: run?.error || 'The test could not finish.',
+  }
+  return (
+    <div className="dashboard-grid">
+      <TestConfig key={run?.id || 'new'} initialConfig={run?.config} onSubmit={submit} loading={busy} loadingLabel={recovering ? 'Checking active run…' : starting ? 'Starting test…' : 'Test active'} error={error} />
+      <section className="results-column" aria-labelledby="results-title">
+        <div className="section-heading"><div><div className="eyebrow">PERFORMANCE REPORT</div><h2 id="results-title">Results overview</h2></div><span className={`badge ${run?.status === 'completed' ? 'success' : ''}`} role="status">{status}</span></div>
+        <div className="result-message" role="status"><span className="message-icon"><Icon name="activity" size={22} /></span><div><strong>{recovering ? 'Looking for an active test.' : starting ? 'Starting your test.' : run ? messages[run.status] : 'Your next insight starts with a test.'}</strong><p>{run ? `${run.config.method} ${run.config.url} · ${run.config.workers} workers · target ${run.config.rps} req/s` : 'Configure a local target and run a test. Your actual results will appear here.'}</p></div></div>
+        {run && <LiveProgress run={run} active={active} stopping={stopping} onStop={stop} />}
+        <ResultsOverview result={run?.summary} />
+        <ResultsDetails result={run?.summary} />
+      </section>
+    </div>
+  )
 }

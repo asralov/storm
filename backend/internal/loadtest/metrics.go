@@ -39,6 +39,12 @@ type Summary struct {
 	MissedSchedules    int `json:"missed_schedules"`
 }
 
+// Clone prevents callers of the run manager from sharing mutable sample storage.
+func (s Summary) Clone() Summary {
+	s.latencies = slices.Clone(s.latencies)
+	return s
+}
+
 func (s *Summary) Record(result Result) {
 	s.Requests++
 
