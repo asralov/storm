@@ -115,6 +115,17 @@ export default function TestForm() {
                 Average Latency: {result.avg_latency_ms.toFixed(2)} ms
                 </p>
 
+                {[50, 95, 99].map((percentile) => {
+                    const latency = result[`p${percentile}_latency_ms`]
+                    return (
+                        <p key={percentile}>
+                            P{percentile} Latency: {result.successes > 0 && Number.isFinite(latency)
+                                ? `${latency.toFixed(2)} ms`
+                                : 'N/A'}
+                        </p>
+                    )
+                })}
+
                 <p>
                 Elapsed: {result.elapsed_seconds.toFixed(2)} seconds
                 </p>
