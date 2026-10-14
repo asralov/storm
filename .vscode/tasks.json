@@ -12,7 +12,13 @@
 				"./cmd/storm-server"
 			],
 			"isBackground": true,
-			"problemMatcher": []
+			"problemMatcher": {
+				"owner": "storm-api",
+				"pattern": { "regexp": "^(.*\\.go):(\\d+):(\\d+): (.*)$", "file": 1, "line": 2, "column": 3, "message": 4 },
+				"background": { "activeOnStart": true, "beginsPattern": "^.*Executing task:", "endsPattern": "Storm API running at http://127\\.0\\.0\\.1:8080" }
+			},
+			"presentation": { "reveal": "always", "panel": "dedicated", "group": "storm-servers" },
+			"runOptions": { "instanceLimit": 1 }
 		},
 		{
 			"label": "Storm: Lab",
@@ -25,6 +31,18 @@
 				"./cmd/storm-lab"
 			],
 			"isBackground": true,
+			"problemMatcher": {
+				"owner": "storm-lab",
+				"pattern": { "regexp": "^(.*\\.go):(\\d+):(\\d+): (.*)$", "file": 1, "line": 2, "column": 3, "message": 4 },
+				"background": { "activeOnStart": true, "beginsPattern": "^.*Executing task:", "endsPattern": "Storm lab listening on http://127\\.0\\.0\\.1:8081" }
+			},
+			"presentation": { "reveal": "always", "panel": "dedicated", "group": "storm-servers" },
+			"runOptions": { "instanceLimit": 1 }
+		},
+		{
+			"label": "Storm: Start servers",
+			"dependsOn": ["Storm: API", "Storm: Lab"],
+			"dependsOrder": "parallel",
 			"problemMatcher": []
 		}
 	]

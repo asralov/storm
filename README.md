@@ -7,3 +7,6 @@ progress definitions, cancellation, security boundaries, and verification comman
 
 See [the performance lab](docs/performance-lab.md) for deterministic local workloads,
 live interval percentiles, and recoverable chart history.
+
+See [stepped load tests](docs/stepped-tests.md) for sequential load levels,
+per-stage comparisons, configuration limits, and API examples.
