@@ -73,7 +73,7 @@ func TestLatencyPercentilesExcludeFailures(t *testing.T) {
 		if summary.P50LatencyMs != wantPercentile || summary.P95LatencyMs != wantPercentile || summary.P99LatencyMs != wantPercentile {
 			t.Fatalf("failures entered latency distribution: %+v", summary)
 		}
-		if len(summary.latencies) != wantSuccesses || summary.Successes != wantSuccesses || summary.Failures != len(failures) || summary.HTTPErrorCount != 3 || summary.NetworkErrors != 2 || summary.Canceled != 2 {
+		if len(summary.latencies) != wantSuccesses || summary.Successes != wantSuccesses || summary.Failures != len(failures) || summary.HTTPErrorCount != 3 || summary.NetworkErrors != 3 || summary.Canceled != 1 {
 			t.Fatalf("unexpected classification: %+v", summary)
 		}
 		if summary.Requests != summary.Successes+summary.Failures || summary.Failures != summary.HTTPErrorCount+summary.NetworkErrors+summary.Canceled {

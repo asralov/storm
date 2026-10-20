@@ -2,7 +2,8 @@ package runs
 
 import (
 	"errors"
-	"github.com/yourusername/storm/internal/loadtest"
+	"github.com/asralov/storm/internal/assessment"
+	"github.com/asralov/storm/internal/loadtest"
 	"net"
 	"net/url"
 	"strings"
@@ -10,17 +11,18 @@ import (
 )
 
 type Config struct {
-	Mode                 string `json:"mode,omitempty"`
-	StartRPS             int    `json:"start_rps,omitempty"`
-	RPSIncrement         int    `json:"rps_increment,omitempty"`
-	MaxRPS               int    `json:"max_rps,omitempty"`
-	StageDurationSeconds int    `json:"stage_duration_seconds,omitempty"`
-	URL                  string `json:"url"`
-	Method               string `json:"method"`
-	Workers              int    `json:"workers"`
-	DurationSeconds      int    `json:"duration_seconds"`
-	Authorized           bool   `json:"authorized"`
-	RPS                  int    `json:"rps"`
+	Thresholds           *assessment.Thresholds `json:"thresholds,omitempty"`
+	Mode                 string                 `json:"mode,omitempty"`
+	StartRPS             int                    `json:"start_rps,omitempty"`
+	RPSIncrement         int                    `json:"rps_increment,omitempty"`
+	MaxRPS               int                    `json:"max_rps,omitempty"`
+	StageDurationSeconds int                    `json:"stage_duration_seconds,omitempty"`
+	URL                  string                 `json:"url"`
+	Method               string                 `json:"method"`
+	Workers              int                    `json:"workers"`
+	DurationSeconds      int                    `json:"duration_seconds"`
+	Authorized           bool                   `json:"authorized"`
+	RPS                  int                    `json:"rps"`
 }
 
 func (c *Config) validate() error {
@@ -29,6 +31,14 @@ func (c *Config) validate() error {
 	}
 	if c.Mode != "standard" && c.Mode != "stepped" {
 		return errors.New("mode must be standard or stepped")
+	}
+	if c.Thresholds != nil {
+		if c.Mode != "stepped" {
+			return errors.New("breakpoint thresholds require stepped mode")
+		}
+		if err := c.Thresholds.Validate(); err != nil {
+			return err
+		}
 	}
 	target, err := url.Parse(c.URL)
 	if err != nil || target.Host == "" || target.Scheme != "http" || target.User != nil || target.Fragment != "" {

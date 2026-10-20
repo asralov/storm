@@ -59,7 +59,7 @@ func TestSuccessfulRequests(t *testing.T) {
 	}
 }
 
-func TestInFlightRequestCancellation(t *testing.T) {
+func TestInFlightRequestTimeoutDuringDrain(t *testing.T) {
 	server := httptest.NewServer(
 		http.HandlerFunc(func(
 			w http.ResponseWriter,
@@ -68,7 +68,7 @@ func TestInFlightRequestCancellation(t *testing.T) {
 			select {
 			case <-r.Context().Done():
 				return
-			case <-time.After(2 * time.Second):
+			case <-time.After(4 * time.Second):
 				w.WriteHeader(http.StatusOK)
 			}
 		}),
@@ -85,9 +85,9 @@ func TestInFlightRequestCancellation(t *testing.T) {
 		t.Fatal("Expected requests to be attempted")
 	}
 
-	if summary.Canceled == 0 {
+	if summary.NetworkErrors == 0 || summary.Canceled != 0 {
 		t.Fatalf(
-			"Expected canceled requests, got %+v",
+			"Expected transport timeouts, not cancellation, got %+v",
 			summary,
 		)
 	}

@@ -64,8 +64,9 @@ func (s *Summary) Record(result Result) {
 	if result.Err != nil {
 		s.Failures++
 
-		if errors.Is(result.Err, context.Canceled) ||
-			errors.Is(result.Err, context.DeadlineExceeded) {
+		// The engine normalizes run-context termination to Canceled. A client
+		// timeout with a live run context is a transport failure.
+		if errors.Is(result.Err, context.Canceled) {
 			s.Canceled++
 		} else {
 			s.NetworkErrors++

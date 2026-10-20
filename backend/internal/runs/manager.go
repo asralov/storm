@@ -8,7 +8,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/yourusername/storm/internal/loadtest"
+	"github.com/asralov/storm/internal/assessment"
+	"github.com/asralov/storm/internal/loadtest"
 )
 
 var (
@@ -32,6 +33,8 @@ type Stage struct {
 }
 
 type Run struct {
+	Persistence           *PersistenceState   `json:"persistence,omitempty"`
+	Analysis              *assessment.Report  `json:"analysis,omitempty"`
 	Intervals             []loadtest.Interval `json:"intervals"`
 	ID                    string              `json:"id"`
 	Config                Config              `json:"config"`
@@ -51,8 +54,19 @@ type Run struct {
 }
 
 type entry struct {
-	run    Run
-	cancel context.CancelFunc
+	run        Run
+	cancel     context.CancelFunc
+	finalizing bool
+}
+
+type PersistenceState struct {
+	Status string `json:"status"`
+	Error  string `json:"error,omitempty"`
+}
+
+// Persistence is supplied by the application. The engine has no storage dependency.
+type Persistence interface {
+	Save(context.Context, Run) error
 }
 type engineFunc func(context.Context, loadtest.Config, chan<- loadtest.Progress) loadtest.Summary
 
@@ -66,13 +80,19 @@ type Manager struct {
 	closed   bool
 	wg       sync.WaitGroup
 	engine   engineFunc
+	store    Persistence
 }
 
-func NewManager() *Manager {
-	return &Manager{runs: make(map[string]*entry), engine: loadtest.RunWithProgress}
+func NewManager(stores ...Persistence) *Manager {
+	m := &Manager{runs: make(map[string]*entry), engine: loadtest.RunWithProgress}
+	if len(stores) > 0 {
+		m.store = stores[0]
+	}
+	return m
 }
 
 func (m *Manager) Start(cfg Config) (Run, error) {
+	cfg.Thresholds = cfg.Thresholds.Clone()
 	if err := cfg.validate(); err != nil {
 		return Run{}, err
 	}
@@ -113,6 +133,21 @@ func (m *Manager) execute(ctx context.Context, e *entry, plan []loadtest.Config)
 	start := time.Now()
 	e.run.StartedAt = &start
 	m.mu.Unlock()
+	// Lifecycle I/O is outside the manager lock and before any request execution.
+	if m.store != nil {
+		m.mu.Lock()
+		initial := clone(e.run)
+		e.run.Persistence = &PersistenceState{Status: "pending"}
+		m.mu.Unlock()
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		err := m.store.Save(ctx, initial)
+		cancel()
+		if err != nil {
+			m.mu.Lock()
+			e.run.Persistence = &PersistenceState{Status: "pending", Error: "Could not save the start record: " + err.Error()}
+			m.mu.Unlock()
+		}
+	}
 	loadDone := 0.0
 	for index, cfg := range plan {
 		// Stop and stage admission share mu. Once Stop has been acknowledged no
@@ -167,7 +202,6 @@ func (m *Manager) execute(ctx context.Context, e *entry, plan []loadtest.Config)
 		}
 	}
 	m.mu.Lock()
-	defer m.mu.Unlock()
 	status := "completed"
 	if e.run.CancellationRequested {
 		status = "canceled"
@@ -188,12 +222,29 @@ func (m *Manager) execute(ctx context.Context, e *entry, plan []loadtest.Config)
 		}
 	}
 	e.run.Progress.Status = status
+	e.finalizing = true
+	if m.store != nil {
+		e.run.Persistence = &PersistenceState{Status: "saving"}
+		final := clone(e.run)
+		final.Persistence = &PersistenceState{Status: "saved"}
+		m.mu.Unlock()
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		err := m.store.Save(ctx, final)
+		cancel()
+		m.mu.Lock()
+		if err != nil {
+			e.run.Persistence = &PersistenceState{Status: "failed", Error: "The report is available in memory but could not be saved: " + err.Error()}
+		} else {
+			e.run.Persistence = &PersistenceState{Status: "saved"}
+		}
+	}
 	m.active = ""
 	m.finished = append(m.finished, e.run.ID)
 	if len(m.finished) > retainedRuns {
 		delete(m.runs, m.finished[0])
 		m.finished = m.finished[1:]
 	}
+	m.mu.Unlock()
 }
 
 // Both standard tests and individual stages use this same execution adapter.
@@ -250,6 +301,11 @@ func copyNumber(p *float64) *float64 {
 	return &v
 }
 func clone(r Run) Run {
+	if r.Persistence != nil {
+		p := *r.Persistence
+		r.Persistence = &p
+	}
+	r.Config.Thresholds = r.Config.Thresholds.Clone()
 	r.Intervals = loadtest.CloneIntervals(r.Intervals)
 	r.Progress.Intervals = nil
 	r.Progress.AvgLatencyMs = copyNumber(r.Progress.AvgLatencyMs)
@@ -270,6 +326,17 @@ func clone(r Run) Run {
 		stages[i] = stage
 	}
 	r.Stages = stages
+	if r.Config.Thresholds != nil {
+		input := make([]assessment.StageInput, len(stages))
+		for i, stage := range stages {
+			input[i] = assessment.StageInput{Number: stage.Number, TargetRPS: stage.TargetRPS, Status: stage.Status, Summary: stage.Summary}
+		}
+		// Thresholds were validated at Start and are private copies. Computing
+		// from this snapshot avoids cached reports going stale during cancellation.
+		if report, err := assessment.Analyze(r.Config.Thresholds, input, r.Status); err == nil {
+			r.Analysis = &report
+		}
+	}
 	return r
 }
 
@@ -298,7 +365,7 @@ func (m *Manager) Stop(id string) (Run, error) {
 	if !ok {
 		return Run{}, ErrNotFound
 	}
-	if e.run.CompletedAt != nil {
+	if e.run.CompletedAt != nil || e.finalizing {
 		return clone(e.run), ErrFinished
 	}
 	e.run.CancellationRequested = true
@@ -308,7 +375,7 @@ func (m *Manager) Stop(id string) (Run, error) {
 func (m *Manager) Close() {
 	m.mu.Lock()
 	m.closed = true
-	if m.active != "" {
+	if m.active != "" && !m.runs[m.active].finalizing {
 		e := m.runs[m.active]
 		e.run.CancellationRequested = true
 		e.cancel()

@@ -6,7 +6,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/yourusername/storm/internal/runs"
+	"github.com/asralov/storm/internal/runs"
 )
 
 func TestSteppedAPICompatibility(t *testing.T) {

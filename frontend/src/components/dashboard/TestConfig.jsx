@@ -13,6 +13,11 @@ export default function TestConfig({ onSubmit, loading, loadingLabel, error, ini
   const [rps, setRps] = useState(initialConfig?.mode === 'stepped' ? 20 : initialConfig?.rps ?? 20)
   const [duration, setDuration] = useState(initialConfig?.mode === 'stepped' ? 5 : initialConfig?.duration_seconds ?? 5)
   const [authorized, setAuthorized] = useState(initialConfig?.authorized ?? false)
+  const [analysisEnabled, setAnalysisEnabled] = useState(Boolean(initialConfig?.thresholds))
+  const [thresholdsOpen, setThresholdsOpen] = useState(Boolean(initialConfig?.thresholds))
+  const [maxP95, setMaxP95] = useState(initialConfig?.thresholds?.max_p95_latency_ms ?? 200)
+  const [maxErrors, setMaxErrors] = useState(initialConfig?.thresholds?.max_error_rate_percent ?? 1)
+  const [minStarts, setMinStarts] = useState(initialConfig?.thresholds?.min_start_rate_percent ?? 95)
   const stepped = mode === 'stepped'
   const plan = stagePlan(Number(startRPS), Number(increment), Number(maxRPS), Number(stageDuration))
   function handleSubmit(event) {
@@ -20,8 +25,9 @@ export default function TestConfig({ onSubmit, loading, loadingLabel, error, ini
     if (loading || !authorized) return
     if (stepped && plan.error) return
     const common = { url: url.trim(), method: 'GET', workers: Number(workers), authorized, mode }
+    const analysis = stepped && analysisEnabled ? { thresholds: { max_p95_latency_ms: Number(maxP95), max_error_rate_percent: Number(maxErrors), min_start_rate_percent: Number(minStarts) } } : {}
     onSubmit(stepped
-      ? { ...common, start_rps: Number(startRPS), rps_increment: Number(increment), max_rps: Number(maxRPS), stage_duration_seconds: Number(stageDuration) }
+      ? { ...common, ...analysis, start_rps: Number(startRPS), rps_increment: Number(increment), max_rps: Number(maxRPS), stage_duration_seconds: Number(stageDuration) }
       : { ...common, rps: Number(rps), duration_seconds: Number(duration) })
   }
   return (
@@ -42,6 +48,16 @@ export default function TestConfig({ onSubmit, loading, loadingLabel, error, ini
           </> : <>
             <div className="field"><label htmlFor="rps">Target request rate<span>01–100</span></label><div className="input-unit"><input id="rps" type="number" min="1" max="100" step="1" value={rps} onChange={e => setRps(e.target.value)} required aria-describedby="rps-help" /><span>req/s</span></div><p id="rps-help">Requests per second across all workers. Actual rate may be lower.</p></div>
             <div className="field"><label htmlFor="duration">Test duration<span>01–30</span></label><div className="input-unit"><input id="duration" type="number" min="1" max="30" step="1" value={duration} onChange={e => setDuration(e.target.value)} required aria-describedby="duration-help" /><span>seconds</span></div><p id="duration-help">How long to schedule requests. In-flight requests may finish afterward.</p></div>
+          </>}
+          {stepped && <>
+            <label className="authorization"><input id="breakpoint-discovery" type="checkbox" checked={analysisEnabled} onChange={e => { setAnalysisEnabled(e.target.checked); setThresholdsOpen(e.target.checked) }} /><span>Enable Breakpoint Discovery</span></label>
+            {analysisEnabled && <details className="threshold-settings" open={thresholdsOpen} onToggle={e => setThresholdsOpen(e.currentTarget.open)}>
+              <summary>Performance thresholds</summary>
+              <div className="field"><label htmlFor="threshold-p95">Maximum P95 latency (ms)</label><input id="threshold-p95" type="number" min="0.000001" max="60000" step="any" required value={maxP95} onChange={e => setMaxP95(e.target.value)} /></div>
+              <div className="field"><label htmlFor="threshold-errors">Maximum HTTP/transport error rate (%)</label><input id="threshold-errors" type="number" min="0" max="100" step="any" required value={maxErrors} onChange={e => setMaxErrors(e.target.value)} /></div>
+              <div className="field"><label htmlFor="threshold-starts">Minimum achieved start rate (% of target)</label><input id="threshold-starts" type="number" min="0.000001" max="100" step="any" required value={minStarts} onChange={e => setMinStarts(e.target.value)} /></div>
+              <p>At least 100 eligible outcomes and 100 successful responses are needed for PASS. Low-rate stages may need more time. These are observed criteria, not a statistically validated SLO.</p>
+            </details>}
           </>}
           <label className="authorization"><input type="checkbox" checked={authorized} onChange={e => setAuthorized(e.target.checked)} required /><span>I own this API or have permission to load test it.</span></label>
           <button className="run-button" type="submit" disabled={loading || !authorized || (stepped && Boolean(plan.error))}><Icon name={loading ? 'activity' : 'play'} size={18} />{loading ? loadingLabel : 'Run test'}{!loading && <span aria-hidden="true">↗</span>}</button>

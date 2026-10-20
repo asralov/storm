@@ -2,25 +2,35 @@ package api
 
 import (
 	"encoding/json"
-	"github.com/yourusername/storm/internal/runs"
+	"github.com/asralov/storm/internal/buildinfo"
+	"github.com/asralov/storm/internal/runs"
+	"github.com/asralov/storm/internal/storage"
 	"net/http"
 )
 
 type Server struct {
 	mux     *http.ServeMux
 	manager *runs.Manager
+	history *storage.Store
 }
 
-func NewServer() *Server {
+func NewServer(stores ...*storage.Store) *Server {
 	s := &Server{
 		mux:     http.NewServeMux(),
 		manager: runs.NewManager(),
+	}
+	if len(stores) > 0 && stores[0] != nil {
+		s.history = stores[0]
+		s.manager = runs.NewManager(s.history)
 	}
 	s.mux.HandleFunc("GET /api/health", s.healthHandler)
 	s.mux.HandleFunc("POST /api/tests", s.createTestHandler)
 	s.mux.HandleFunc("GET /api/tests/active", s.activeTestHandler)
 	s.mux.HandleFunc("GET /api/tests/{id}", s.getTestHandler)
 	s.mux.HandleFunc("POST /api/tests/{id}/stop", s.stopTestHandler)
+	s.mux.HandleFunc("GET /api/history", s.listHistoryHandler)
+	s.mux.HandleFunc("GET /api/history/{id}", s.getHistoryHandler)
+	s.mux.HandleFunc("DELETE /api/history/{id}", s.deleteHistoryHandler)
 	s.mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) { writeError(w, 404, "endpoint not found") })
 	return s
 }
@@ -51,6 +61,6 @@ func (s *Server) healthHandler(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(map[string]string{
 		"status":  "ok",
 		"service": "storm",
-		"version": "0.1.0",
+		"version": buildinfo.Version(),
 	})
 }

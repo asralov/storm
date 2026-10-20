@@ -9,7 +9,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/yourusername/storm/internal/loadtest"
+	"github.com/asralov/storm/internal/loadtest"
 )
 
 func call(s *Server, path string) *httptest.ResponseRecorder {

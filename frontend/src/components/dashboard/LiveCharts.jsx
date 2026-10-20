@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useId, useState } from 'react'
 import { CartesianGrid, Line, LineChart, ReferenceLine, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
 import { formatMetric } from './formatMetric'
 
@@ -24,7 +24,7 @@ function SampleTooltip({ active, payload, unit }) {
   return <div className="chart-tooltip"><p>{exact(point.start)}–{exact(point.elapsed)} s · {exact(point.duration)} s window</p>{payload.map(series => <p key={series.dataKey}><strong style={{ color: series.color }}>{series.name}: {exact(series.value)} {unit}</strong></p>)}<p>{point.successes} successful / {point.completed} recorded outcomes</p>{point.successes > 0 && point.successes < 20 && <p>Small sample: tail estimates are limited.</p>}</div>
 }
 
-function TimelineChart({ chart, samples, targetRPS }) {
+function TimelineChart({ chart, samples, targetRPS, archived }) {
   const [hidden, setHidden] = useState([])
   const visible = chart.series.filter(series => !hidden.includes(series.key))
   const valid = samples.some(point => visible.some(series => Number.isFinite(point[series.key])))
@@ -42,17 +42,18 @@ function TimelineChart({ chart, samples, targetRPS }) {
         {chart.key === 'throughput' && Number.isFinite(targetRPS) && <ReferenceLine y={targetRPS} ifOverflow="extendDomain" stroke="#FBBF24" strokeDasharray="5 4" label={{ value: `Start target: ${targetRPS} req/s`, position: 'insideTopRight', fill: '#FBBF24', fontSize: 10 }} />}
         {visible.map(series => <Line key={series.key} dataKey={series.key} name={series.label} type="linear" stroke={series.color} strokeDasharray={series.dash} strokeWidth={2} dot={{ r: 2, strokeWidth: 0, fill: series.color }} activeDot={{ r: 4 }} connectNulls={false} isAnimationActive={false} />)}
       </LineChart>
-    </ResponsiveContainer> : <div className="chart-empty">{!visible.length ? 'Select a series above to display it.' : !samples.length ? 'Waiting for the first completed measurement window.' : chart.key === 'latency' ? 'No successful-response latency samples in these windows.' : 'No measurements available.'}</div>}</div>
+    </ResponsiveContainer> : <div className="chart-empty">{!visible.length ? 'Select a series above to display it.' : !samples.length ? archived ? 'No interval measurements were saved for this selection.' : 'Waiting for the first completed measurement window.' : chart.key === 'latency' ? 'No successful-response latency samples in these windows.' : 'No measurements available.'}</div>}</div>
     <p className="chart-latest">{samples.length ? `Latest window ends at ${formatMetric(samples.at(-1).elapsed, 2)} s · ${samples.at(-1).successes} successful responses` : 'No measurement available'}{chart.key === 'throughput' && ' · The start target does not guarantee completed throughput.'}</p>
   </article>
 }
 
-export default function LiveCharts({ samples = [], recovered = false, targetRPS }) {
+export default function LiveCharts({ samples = [], recovered = false, targetRPS, archived = false }) {
+  const titleId = useId()
   const truncated = samples.length > 0 && samples[0].sequence > 1
-  return <section className="timeline-section" aria-labelledby="timeline-title">
-    <div className="details-heading"><h2 id="timeline-title">Performance timeline</h2><span className="eyebrow">{samples.length} WINDOWS</span></div>
+  return <section className="timeline-section" aria-labelledby={titleId}>
+    <div className="details-heading"><h2 id={titleId}>Performance timeline</h2><span className="eyebrow">{samples.length} WINDOWS</span></div>
     <p className="timeline-caption">{recovered ? 'Recovered measured interval history from the backend.' : 'One-second measurement windows, plus the final partial window.'} Time includes draining.{truncated && ' Earlier windows are outside the retained history.'}</p>
-    <div className="charts-grid">{charts.map(chart => <TimelineChart key={chart.key} chart={chart} samples={samples} targetRPS={targetRPS} />)}</div>
+    <div className="charts-grid">{charts.map(chart => <TimelineChart key={chart.key} chart={chart} samples={samples} targetRPS={targetRPS} archived={archived} />)}</div>
     <p className="timeline-caption">Charts use interval statistics; summary cards use the whole run. Nearest-rank percentiles with very few successes have limited statistical meaning. Up to 300 measured windows are retained. Lines connect measurements without smoothing.</p>
   </section>
 }

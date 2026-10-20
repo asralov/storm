@@ -151,7 +151,7 @@ At current limits (30-second load window, at most 3 seconds of drain), 300 windo
 cover normal runs in full. If a run ever exceeds retained history, sums apply only
 to retained windows and the UI flags missing earlier windows. OS scheduling and
 HTTP overhead affect observed delays. The lab is a demonstration model, not a
-production benchmark. All state disappears on backend restart, and refreshing an
+production benchmark. Saved reports and charts survive backend restart in Test History; refreshing an
 already-completed dashboard does not automatically reopen that run.
 
 ## Files

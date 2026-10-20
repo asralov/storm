@@ -14,11 +14,27 @@
 			"isBackground": true,
 			"problemMatcher": {
 				"owner": "storm-api",
-				"pattern": { "regexp": "^(.*\\.go):(\\d+):(\\d+): (.*)$", "file": 1, "line": 2, "column": 3, "message": 4 },
-				"background": { "activeOnStart": true, "beginsPattern": "^.*Executing task:", "endsPattern": "Storm API running at http://127\\.0\\.0\\.1:8080" }
+				"pattern": {
+					"regexp": "^(.*\\.go):(\\d+):(\\d+): (.*)$",
+					"file": 1,
+					"line": 2,
+					"column": 3,
+					"message": 4
+				},
+				"background": {
+					"activeOnStart": true,
+					"beginsPattern": "^.*Executing task:",
+					"endsPattern": "Storm API running at http://127\\.0\\.0\\.1:8080"
+				}
 			},
-			"presentation": { "reveal": "always", "panel": "dedicated", "group": "storm-servers" },
-			"runOptions": { "instanceLimit": 1 }
+			"presentation": {
+				"reveal": "always",
+				"panel": "dedicated",
+				"group": "storm-servers"
+			},
+			"runOptions": {
+				"instanceLimit": 1
+			}
 		},
 		{
 			"label": "Storm: Lab",
@@ -33,16 +49,55 @@
 			"isBackground": true,
 			"problemMatcher": {
 				"owner": "storm-lab",
-				"pattern": { "regexp": "^(.*\\.go):(\\d+):(\\d+): (.*)$", "file": 1, "line": 2, "column": 3, "message": 4 },
-				"background": { "activeOnStart": true, "beginsPattern": "^.*Executing task:", "endsPattern": "Storm lab listening on http://127\\.0\\.0\\.1:8081" }
+				"pattern": {
+					"regexp": "^(.*\\.go):(\\d+):(\\d+): (.*)$",
+					"file": 1,
+					"line": 2,
+					"column": 3,
+					"message": 4
+				},
+				"background": {
+					"activeOnStart": true,
+					"beginsPattern": "^.*Executing task:",
+					"endsPattern": "Storm lab listening on http://127\\.0\\.0\\.1:8081"
+				}
 			},
-			"presentation": { "reveal": "always", "panel": "dedicated", "group": "storm-servers" },
-			"runOptions": { "instanceLimit": 1 }
+			"presentation": {
+				"reveal": "always",
+				"panel": "dedicated",
+				"group": "storm-servers"
+			},
+			"runOptions": {
+				"instanceLimit": 1
+			}
 		},
 		{
 			"label": "Storm: Start servers",
-			"dependsOn": ["Storm: API", "Storm: Lab"],
+			"dependsOn": [
+				"Storm: API",
+				"Storm: Lab"
+			],
 			"dependsOrder": "parallel",
+			"problemMatcher": []
+		},
+		{
+			"label": "Storm: Frontend",
+			"type": "shell",
+			"command": "npm",
+			"args": [
+				"--prefix",
+				"${workspaceFolder}/frontend",
+				"run",
+				"dev"
+			],
+			"isBackground": true,
+			"problemMatcher": []
+		},
+		{
+			"label": "Storm: Standalone",
+			"type": "shell",
+			"command": "& '${workspaceFolder}/release/windows-amd64/storm.exe'",
+			"isBackground": true,
 			"problemMatcher": []
 		}
 	]

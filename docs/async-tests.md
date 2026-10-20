@@ -170,18 +170,18 @@ P50/P95/P99/Average, completed throughput, and split failures. The backend retai
 up to 300 windows per run. Active-run recovery restores those measured windows;
 missed polls do not fabricate or duplicate data. Final partial intervals are
 included and chart history remains available until the run is evicted or the
-backend restarts. Whole-run summary cards and cumulative numeric progress remain
+backend restarts; saved chart history remains available in Test History. Whole-run summary cards and cumulative numeric progress remain
 separate. See [the full interval contract and lab guide](performance-lab.md).
 
 - At most one active run and 20 finished runs are retained. Evicted IDs return 404.
-- All state disappears when the backend restarts. There is no history UI/storage.
+- Finalized reports persist in SQLite and remain available through Test History after restart. In-memory active-run endpoints do not restore old IDs; interrupted markers appear in history.
 - Refresh recovers an active run; a completed run is accessible by its retained ID
   through the API but is not automatically restored by the dashboard after refresh.
 - Polling and engine sampling introduce display delay; short states can be missed.
 - Latency samples remain in memory for the bounded MVP. High-volume testing would
   require histograms. Scheduler counters represent observed ticks, not every ideal
   scheduling opportunity, and do not imply precise open-loop rate accuracy.
-- No WebSockets, database, cloud access, accounts, or external-host testing.
+- No WebSockets, cloud access, accounts, or external-host testing.
 
 ## Phase 2 file inventory
 

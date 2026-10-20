@@ -1,0 +1,25 @@
+STORM — WINDOWS BETA
+
+Extract the entire ZIP. Run storm.exe. The browser opens the dashboard at a loopback URL.
+No Go, Node.js, GCC, MSYS2, Vite or database installation is required.
+
+Options:
+  storm.exe --version
+  storm.exe --port 8090 --no-browser
+  storm.exe --port 0 --no-browser
+
+Use an HTTP GET endpoint served by an API you own on this computer. Confirm authorization.
+Only localhost/loopback is supported. The optional Storm Lab is separately built from source;
+it is not included in this archive. No remote-host load testing or redirects.
+
+Press Ctrl+C in the console to stop Storm cleanly. Closing the browser does not stop it.
+History: %LOCALAPPDATA%\Storm\history.sqlite3. Do not put tokens in target URLs.
+Only one Storm instance may own that history database, even on different listening ports.
+
+This executable is unsigned. Verify the download source and published SHA-256 checksum.
+Clean Windows 11 VM validation remains outstanding at preparation time. See release notes.
+
+Repository: https://github.com/asralov/storm
+License: LICENSE
+Dependency licenses: THIRD-PARTY-NOTICES.txt
+Build provenance: build-metadata.json

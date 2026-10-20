@@ -7,7 +7,8 @@
     "dev": "vite",
     "build": "vite build",
     "lint": "eslint .",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "test": "node --test src/hooks/timeline.test.js src/components/dashboard/stagePlan.test.js src/components/dashboard/assessmentRendering.test.js src/components/history/history.test.js src/components/comparison/compare.test.js src/components/comparison/rendering.test.js"
   },
   "dependencies": {
     "react": "^19.2.8",

@@ -6,6 +6,7 @@ import (
 	"io"
 	"net"
 	"net/http"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -205,7 +206,7 @@ func dialLoopback(ctx context.Context, network, address string) (net.Conn, error
 	if err != nil {
 		return nil, err
 	}
-	if host == "localhost" {
+	if strings.EqualFold(host, "localhost") {
 		host = "127.0.0.1"
 	}
 	ip := net.ParseIP(host)
@@ -302,6 +303,9 @@ func executeRequest(
 
 	resp, err := client.Do(req)
 	if err != nil {
+		if ctx.Err() != nil {
+			err = context.Canceled
+		}
 		return Result{
 			Latency: time.Since(start),
 			Err:     err,
@@ -311,6 +315,9 @@ func executeRequest(
 
 	// Include complete body transfer in measured latency.
 	_, err = io.Copy(io.Discard, resp.Body)
+	if err != nil && ctx.Err() != nil {
+		err = context.Canceled
+	}
 
 	return Result{
 		StatusCode: resp.StatusCode,

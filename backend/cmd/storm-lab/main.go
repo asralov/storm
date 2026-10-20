@@ -11,7 +11,7 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/yourusername/storm/internal/lab"
+	"github.com/asralov/storm/internal/lab"
 )
 
 func main() {

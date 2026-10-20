@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { createTest, getActiveTest, getTest, stopTest } from '../services/testService'
 import { mergeRun } from './timeline'
 
-const terminal = status => ['completed', 'canceled', 'failed'].includes(status)
+const terminal = run => ['completed', 'canceled', 'failed'].includes(run.status) && run.persistence?.status !== 'saving'
 
 export default function useTestRun() {
   const [run, setRun] = useState(null)
@@ -13,13 +13,15 @@ export default function useTestRun() {
   const mutation = useRef(false)
   const stopPending = useRef(false)
   const lifetime = useRef(null)
-  const active = Boolean(run && !terminal(run.status))
+  const active = Boolean(run && !terminal(run))
   const id = run?.id
 
   useEffect(() => {
     const controller = new AbortController()
     lifetime.current = controller
-    return () => controller.abort()
+    const historyDeleted = event => setRun(current => current?.id === event.detail.id ? { ...current, persistence: { status: 'deleted' } } : current)
+    window.addEventListener('storm-history-deleted', historyDeleted)
+    return () => { controller.abort(); window.removeEventListener('storm-history-deleted', historyDeleted) }
   }, [])
 
   useEffect(() => {
@@ -56,13 +58,13 @@ export default function useTestRun() {
         if (controller.signal.aborted) return
         setRun(previous => mergeRun(previous, data))
         setError('')
-        finished = terminal(data.status)
+        finished = terminal(data)
       } catch (err) {
         if (controller.signal.aborted) return
         setError(err.message)
         if (err.status === 404) {
           // The backend may have restarted. Do not manufacture a final summary.
-          setRun(current => ({ ...current, status: 'failed', error: 'Run unavailable. The backend may have restarted.' }))
+          setRun(current => ({ ...current, status: 'failed', persistence: undefined, error: 'Run unavailable. The backend may have restarted.' }))
           finished = true
         }
       }
@@ -103,7 +105,7 @@ export default function useTestRun() {
   }
 
   async function stop() {
-    if (!active || stopPending.current || run.cancellation_requested) return
+    if (!active || stopPending.current || run.cancellation_requested || run.persistence?.status === 'saving') return
     stopPending.current = true
     setStopping(true)
     const signal = lifetime.current.signal

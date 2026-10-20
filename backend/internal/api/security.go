@@ -34,7 +34,7 @@ func safeRequest(w http.ResponseWriter, r *http.Request) bool {
 		writeError(w, 403, "cross-site requests are not allowed")
 		return false
 	}
-	if r.Method == http.MethodPost {
+	if r.Method == http.MethodPost || r.Method == http.MethodDelete {
 		kind, _, err := mime.ParseMediaType(r.Header.Get("Content-Type"))
 		if err != nil || kind != "application/json" {
 			writeError(w, 415, "Content-Type must be application/json")

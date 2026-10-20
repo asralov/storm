@@ -130,8 +130,9 @@ for stepped jobs. Counts and percentile values are never copied from prior stage
   No successful samples means `N/A` in the UI. Small samples have limited tail meaning.
 
 Missed schedules or a gap between target and actual starts can reflect worker or
-generator constraints. They are not proof of target-server overload. This phase
-does not assign capacity thresholds or breakpoint conclusions.
+generator constraints. They are not proof of target-server overload. Optional
+[Breakpoint Discovery](breakpoint-discovery.md) assesses completed stages against
+user thresholds with evidence gates; it does not establish guaranteed capacity.
 
 ## Limits
 
@@ -142,10 +143,8 @@ does not assign capacity thresholds or breakpoint conclusions.
 - One active job across both modes; at most 20 finished jobs retained in memory.
 - Each engine call creates its own client/connection pool, so connection warmup
   repeats per stage. Target-server state is not reset between stages.
-- The interval timeline shows the current/last stage. Prior stage histories remain
-  in the API but there is no stage-history browsing UI or persistent database.
-- Backend restart loses jobs; refresh restores active jobs, not an already-completed
-  job automatically. No automatic breakpoint detection, cloud load, or exports.
+- The interval timeline shows the current/last stage. Prior stage histories are saved in SQLite and can be selected in the saved report.
+- Backend restart interrupts active jobs; saved reports survive in Test History. Refresh restores active jobs, not a completed dashboard automatically. No adaptive load scheduling, guaranteed capacity claims, cloud load, or exports.
 
 ## Validation
 
